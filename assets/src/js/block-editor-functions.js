@@ -11,6 +11,10 @@ const {
 const {withState} = wp.compose;
 const {Fragment} = wp.element;
 
+// External dependencies.
+import shim from 'string.prototype.matchall/shim';
+shim();
+
 registerPlugin( 'rrze-xliff', {
     render: () => {
         const currentUrl = window.location;
@@ -98,60 +102,33 @@ registerPlugin( 'rrze-xliff', {
 
             // Funktion, die nach Auslesen der Datei ausgeführt wird.
             reader.onload = (xliffString) => {
-                let oParser = new DOMParser(),
-                    oDOM = oParser.parseFromString(xliffString.target.result, 'application/xml'),
-                    submitButton = document.querySelector('#xliff-import-button'),
-                    title,
-                    content,
-                    metaValues = {};
+				// Get title of XML file.
+				let title = xliffString.target.result.match( /<unit id="title">(?:(?:.|\s)*?)<target>(?<title>(.|\s)*?)<\/target>/m );
+				title = title['groups'].title;
+
+				// Get content part of XML file.
+				let contentHtml = xliffString.target.result.match( /<unit id="body">(?:(?:.|\s)*?)<target>(?<content>(.|\s)*?)<\/target>/m );
+				let content = contentHtml['groups'].content;
+
+				// Get meta values.
+				let metaMatches = [...xliffString.target.result.matchAll( /<unit id="_meta_(?<metaKey>(?:.*))">(?:(?:.|\s)*?)<target>(?<metaValue>(.|\s)*?)<\/target>/mg )];
+				console.log( metaMatches );
+                let submitButton = document.querySelector('#xliff-import-button'),
+					metaValues = {};
+					
 
                 submitButton.removeAttribute('hidden');
 
                 // Die Knoten der XLIFF-Datei durchlaufen und die Strings zusammensetzen, die
                 // in den Editor kommen.
-                for (let xliffNode of oDOM.childNodes) {
-                    if (xliffNode.nodeName === 'xliff') {
-                        for (let childNode of xliffNode.childNodes) {
-                            if (childNode.nodeName === 'file') {
-                                for (let fileChild of childNode.childNodes) {
-                                    if (fileChild.nodeName === 'unit') {
-                                        if (fileChild.id === 'title') {
-                                            for (let titleNodes of fileChild.childNodes) {
-                                                if (titleNodes.nodeName === 'segment') {
-                                                    for (let titleNodeSegment of titleNodes.childNodes) {
-                                                        if (titleNodeSegment.nodeName === 'target') {
-                                                            title = titleNodeSegment.textContent;
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        } else if (fileChild.id === 'body') {
-                                            for (let bodyNodes of fileChild.childNodes) {
-                                                if (bodyNodes.nodeName === 'segment') {
-                                                    for (let bodyNodeSegment of bodyNodes.childNodes) {
-                                                        if (bodyNodeSegment.nodeName === 'target') {
-                                                            content = bodyNodeSegment.textContent;
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        } else if (fileChild.id.indexOf('_meta_') === 0) {
-                                            for (let metaNodes of fileChild.childNodes) {
-                                                if (metaNodes.nodeName === 'segment') {
-                                                    for (let metaNodesegment of metaNodes.childNodes) {
-                                                        if (metaNodesegment.nodeName === 'target') {
-                                                            metaValues = Object.assign(metaValues, {[`${fileChild.id.replace('_meta_', '')}`]: metaNodesegment.textContent})
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }    
-                }
+				
+				// Build meta values object.
+				if ( metaMatches.length > 0 ) {
+					for ( let i = 0; i < metaMatches.length; i++ ) {
+						const metaMatch = metaMatches[i];
+						metaValues = Object.assign(metaValues, {[metaMatch.groups.metaKey]: metaMatch.groups.metaValue})
+					}
+				}
 
                 submitButton.addEventListener('click', function(e) {
                     // Das HTML des Beitragsinhalts aus der XLIFF-Datei in Blöcke parsen.
