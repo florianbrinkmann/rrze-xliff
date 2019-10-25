@@ -301,8 +301,8 @@ class Export
                 $translation_units .= sprintf(
                     '        <unit id="%1$s">
             <segment>
-                <source><![CDATA[%2$s]]></source>
-                <target><![CDATA[%3$s]]></target>
+                <source>%2$s</source>
+                <target>%3$s</target>
             </segment>
         </unit>',
                     $element->field_type,
