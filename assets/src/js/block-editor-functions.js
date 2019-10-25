@@ -188,7 +188,7 @@ registerPlugin( 'rrze-xliff', {
                             title={rrzeXliffJavaScriptData.import}
                             onRequestClose={ () => setState({isOpen: false})}
                         >
-                            <input type="file" id="xliff-file" name="xliff-file" accept=".xliff" onChange={(e) => {
+                            <input type="file" id="xliff-file" name="xliff-file" accept=".xliff,.xml" onChange={(e) => {
                                     handleFiles(e.target.files);
                                     if (e.target.files) {
                                         setState({hasFile: true})

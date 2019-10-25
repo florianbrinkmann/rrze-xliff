@@ -336,7 +336,7 @@ class Export
         }
         
         $filename = sanitize_file_name(sprintf(
-            '%s%s-%s-%s-%s.xliff',
+            '%s%s-%s-%s-%s.xml',
             $domain,
             $path !== '/' ? "-$path" : '',
             $blog_id,

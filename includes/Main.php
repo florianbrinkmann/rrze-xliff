@@ -159,7 +159,7 @@ class Main
                                 </div>
                                 <p>
                                     <label style="display: block" for="xliff_import_file">%s</label>
-                                    <input type="file" id="xliff_import_file" name="xliff_import_file" accept=".xliff" form="post">
+                                    <input type="file" id="xliff_import_file" name="xliff_import_file" accept=".xliff,.xml" form="post">
                                 </p>
                                 <p><button class="button" id="xliff_import_button" type="submit" form="post">%s</button></p>
                             </div>
