@@ -23,6 +23,7 @@ class Options
             'rrze_xliff_export_email_subject' => 'XLIFF-Export',
             'rrze_xliff_export_import_role' => 'editor',
             'rrze_xliff_export_import_post_types' => ['post', 'page'],
+            'rrze_xliff_export_presets' => [],
         ];
 
         return $options;

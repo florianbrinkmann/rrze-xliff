@@ -148,6 +148,21 @@ class Settings
             'rrze_xliff_options',
             'rrze_xliff_section_general'
         );
+
+        add_settings_section(
+            'rrze_xliff_section_export_presets',
+            false,
+            [$this, 'rrze_xliff_section_export_presets'],
+            'rrze_xliff_options'
+        );
+
+        add_settings_field(
+            'rrze_xliff_export_presets',
+            __('Export presets', 'rrze-xliff'),
+            [$this, 'rrze_xliff_export_presets'],
+            'rrze_xliff_options',
+            'rrze_xliff_section_export_presets'
+        );
     }
 
     /**
@@ -286,5 +301,112 @@ class Settings
             );
         }
         echo $post_type_options;
+    }
+
+    /**
+     * Header für den Knotenpunkt-Bereich der Einstellungen.
+     */
+    public function rrze_xliff_section_export_presets()
+    {
+        printf(
+            '<h3>%s</h3>',
+            __('Presets', 'rrze-xliff')
+        );
+    }
+
+    /**
+     * Feld für Knotenpunkte.
+     */
+    public function rrze_xliff_export_presets()
+    {
+		$saved_settings = $this->options->rrze_xliff_export_presets;
+
+		$saved_presets_markup = '';
+		if ($saved_settings && is_array($saved_settings) && !empty($saved_settings)) {
+			foreach ($saved_settings as $saved_setting) {
+				$preset_page = get_post($saved_setting);
+
+				// Remove setting if page does not exist.
+				if ($preset_page === null) {
+					unset($saved_settings[(int) $saved_setting]);
+					continue;
+				}
+
+				$saved_presets_markup .= sprintf(
+					'<p><input type="checkbox" name="%1$s" value="%2$s" id="%3$s" checked="checked"><label for="%3$s">%4$s</label></p>',
+					sprintf('%s[rrze_xliff_export_presets][%s]', $this->option_name, $saved_setting),
+					$saved_setting,
+					sprintf('rrze-xliff-export-presets-%s', $saved_setting),
+					$preset_page->post_title
+				);
+			}
+		}
+		
+		// Display pages dropdown.
+		printf(
+			'<label for="rrze_xliff_preset_select">%s</label>
+			<br>
+			%s
+			<button type="button" class="button rrze-xliff-add-preset-button">%s</button>
+			<div class="rrze-xliff-presets-list">%s</div>
+			<script>(function(){
+				var addPresetButton = document.querySelector(".rrze-xliff-add-preset-button");
+				if (addPresetButton) {
+					addPresetButton.addEventListener("click", function(e) {
+						e.preventDefault();
+
+						// Get selected page.
+						var pageSelect = document.getElementById("rrze_xliff_preset_select");
+						if (!pageSelect) {
+							return;
+						}
+
+						var selectedOption = pageSelect.selectedOptions[0];
+
+						// @todo: check if we already have that page as an option and do nothing.
+
+						// Create checkbox element.
+						var paragraphElem = document.createElement("p"),
+							inputElem = document.createElement("input"),
+							labelElem = document.createElement("label");
+
+						paragraphElem.appendChild(inputElem);
+						paragraphElem.appendChild(labelElem);
+
+						inputElem.setAttribute("type", "checkbox");
+						inputElem.setAttribute("value", selectedOption.value);
+						inputElem.setAttribute("name", "%s[" + selectedOption.value + "]");
+						inputElem.setAttribute("id", "rrze-xliff-export-presets-" + selectedOption.value);
+						inputElem.setAttribute("checked", "checked");
+
+						labelElem.setAttribute("for", "rrze-xliff-export-presets-" + selectedOption.value);
+						labelElem.appendChild(document.createTextNode(selectedOption.textContent.trim()));
+
+						// Add to the beginning of the preset list.
+						var presetList = document.querySelector(".rrze-xliff-presets-list");
+						if (!presetList) {
+							return;
+						}
+
+						var refNode = document.querySelector(".rrze-xliff-presets-list > :first-child");
+
+						if (!refNode) {
+							presetList.appendChild(paragraphElem);
+							return;
+						}
+
+						refNode.parentNode.insertBefore(paragraphElem, refNode);
+					});
+				}
+			})();</script>',
+			__('Choose root page for preset', 'rrze-xliff'),
+			wp_dropdown_pages([
+				'id' => 'rrze_xliff_preset_select',
+				'echo' => 0,
+			]),
+			__('Add preset', 'rrze-xliff'),
+			$saved_presets_markup,
+			sprintf('%s[rrze_xliff_export_presets]', $this->option_name)
+		);
     }
 }

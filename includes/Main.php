@@ -22,6 +22,11 @@ class Main
         add_action('enqueue_block_editor_assets', [$this, 'enqueue_block_editor_script']);
         
         add_action('current_screen', function ($screen) {
+			if ($screen->base === 'toplevel_page_nestedpages') {
+				add_action('admin_enqueue_scripts', [$this, 'enqueue_nestedpages_bulk_export_script']);
+				return;
+			}
+
             if ($screen->base != 'post' && $screen->id != "edit-$screen->post_type") {
                 return;
             }
@@ -42,7 +47,7 @@ class Main
             } elseif ($screen->id == "edit-$screen->post_type") {
                 add_action('admin_enqueue_scripts', [$this, 'enqueue_bulk_export_script']);
             }
-        });
+		});
     }
 
     /**
@@ -94,6 +99,44 @@ class Main
             'email_address' => Options::get_options()->rrze_xliff_export_email_address
         ]);
         wp_enqueue_script('rrze-xliff-bulk-export');
+    }
+
+    /**
+     * Einbinden des Skripts für den Bulk-Export.
+     */
+    public function enqueue_nestedpages_bulk_export_script()
+    {
+		// Build preset options select markup.
+		$saved_settings = Options::get_options()->rrze_xliff_export_presets;
+
+		$saved_presets_markup = '';
+		if ($saved_settings && is_array($saved_settings) && !empty($saved_settings)) {
+			$saved_presets_markup = sprintf('<select id="export-presets"><option value="">%s</option>', __('Export presets', 'rrze-xliff'));
+			foreach ($saved_settings as $saved_setting) {
+				$preset_page = get_post($saved_setting);
+
+				// Remove setting if page does not exist.
+				if ($preset_page === null) {
+					unset($saved_settings[(int) $saved_setting]);
+					continue;
+				}
+
+				$saved_presets_markup .= sprintf(
+					'<option value="%s">%s</option>',
+					$saved_setting,
+					$preset_page->post_title
+				);
+			}
+			$saved_presets_markup .= '</select>';
+		}
+
+        wp_register_script('rrze-xliff-nestedpages-bulk-export', plugins_url('assets/dist/js/nestedpages-bulk-export-functions.js', plugin_basename(RRZE_PLUGIN_FILE)), [], false, true);
+		wp_localize_script('rrze-xliff-nestedpages-bulk-export', 'rrzeXliffJavaScriptData', [
+			'dropdown_menu_label' => __('Bulk XLIFF export', 'rrze-xliff'),
+			'select_tree_button_label' => __('Select page tree', 'rrze-xliff'),
+			'preset_select_markup' => $saved_presets_markup,
+        ]);
+		wp_enqueue_script('rrze-xliff-nestedpages-bulk-export');
     }
 
     /**
@@ -180,5 +223,5 @@ class Main
     public function classic_editor_nonce_field()
     {
         wp_nonce_field('rrze-xliff/includes/Main', 'rrze_xliff_file_import_nonce');
-    }
+	}
 }
