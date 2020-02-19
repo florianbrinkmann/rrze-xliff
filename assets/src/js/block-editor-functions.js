@@ -112,7 +112,6 @@ registerPlugin( 'rrze-xliff', {
 
 				// Get meta values.
 				let metaMatches = [...xliffString.target.result.matchAll( /<unit id="_meta_(?<metaKey>(?:.*))">(?:(?:.|\s)*?)<target>(?<metaValue>(.|\s)*?)<\/target>/mg )];
-				console.log( metaMatches );
                 let submitButton = document.querySelector('#xliff-import-button'),
 					metaValues = {};
 					
@@ -131,9 +130,10 @@ registerPlugin( 'rrze-xliff', {
 				}
 
                 submitButton.addEventListener('click', function(e) {
-                    // Das HTML des Beitragsinhalts aus der XLIFF-Datei in Blöcke parsen.
+					// Das HTML des Beitragsinhalts aus der XLIFF-Datei in Blöcke parsen.
+					console.log(content);
                     content = wp.blocks.parse(content);
-                    // Die alten Blöcke aus dem Editor löschen.
+					// Die alten Blöcke aus dem Editor löschen.
                     // @link https://wordpress.stackexchange.com/a/305935.
                     wp.data.dispatch('core/editor').resetBlocks([]);
 

@@ -4,7 +4,7 @@ namespace RRZE\XLIFF;
 
 class Export
 {
-    protected $xliff_files = [];
+    protected $xliff_file = [];
     
     protected $helpers;
 
@@ -13,7 +13,20 @@ class Export
      */
     public function __construct()
     {
-        $this->helpers = new Helpers();
+		$this->helpers = new Helpers();
+		
+		add_action('admin_post_npBulkActions', function() {
+			$action = sanitize_text_field($_POST['np_bulk_action']);
+			if ($action !== 'xliff-export') {
+				return;
+			}
+			$post_ids = sanitize_text_field($_POST['post_ids']);
+			$post_ids = rtrim($post_ids, ",");
+			$post_ids = explode(',', $post_ids);
+			$file = $this->get_xliff_file($post_ids);
+			$this->send_xliff_download();
+			header('Location:' . sanitize_text_field($_POST['page']));
+		}, 2);
         
         add_action('admin_init', function() {
             // Bulk-Export-Optionen für alle ausgewählten Beitragstypen anzeigen.
@@ -77,10 +90,10 @@ class Export
     {
         if ($doaction !== 'xliff_bulk_export' || $this->helpers->is_user_capable() === false) {
             return $redirect_to;
-        }
-        foreach ($post_ids as $post_id) {
-            $file = $this->get_xliff_file($post_id);
-        }
+		}
+		
+		$file = $this->get_xliff_file($post_ids);
+
         if ((isset($_GET['xliff-bulk-export-choice']) && $_GET['xliff-bulk-export-choice'] === 'xliff-bulk-export-choice-download') || !isset($_GET['xliff-bulk-export-choice'])) {
             $this->send_xliff_download();
         } else {
@@ -99,46 +112,21 @@ class Export
      */
     protected function send_xliff_download($email = '', $body = '')
     {
-        // Prüfen ob keine Datei(en) in $this->xliff_files sind.
-        if (empty($this->xliff_files)) {
+        // Prüfen ob keine Datei(en) in $this->xliff_file sind.
+        if (empty($this->xliff_file)) {
             Notices::add_notice(__('No file was found for download or sending.', 'rrze-xliff'), 'success');
             return;
-        }
-
-        // Prüfen, ob mehr als eine Datei in dem Array vorhanden sind.
-        // Falls ja, als ZIP packen. Andernfalls einfach die Datei direkt versenden/als Download anbieten.
-        $zip_filename = 'xliff-dateien.zip';
-        if (count($this->xliff_files) > 1) {
-            // @link https://www.virendrachandak.com/techtalk/how-to-create-a-zip-file-using-php/.
-            $zip = new \ZipArchive();
-            if ($zip->open($zip_filename, \ZipArchive::CREATE) === TRUE) {
-                // Die XLIFF-Dateien durchlaufen und zum ZIP hinzufügen.
-                foreach ($this->xliff_files as $xliff_file) {
-                    $zip->addFromString($xliff_file['filename'], $xliff_file['file_content']);
-                }
-
-                $zip->close();
-            }
         }
 
         $body = preg_replace('/(\r\n|[\r\n])/', '<br>', $body);
 
         // Entscheiden, ob die Datei heruntergeladen oder per Mail verschickt werden soll.
         if ($email === '' || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
-            if (isset($zip)) {
-                header('Content-Type: application/zip');
-                header('Content-disposition: attachment; filename='.$zip_filename);
-                header('Content-Length: ' . filesize($zip_filename));
-                readfile($zip_filename);
-                unlink($zip_filename);
-                exit;
-            } else {
-                header('Content-Description: File Transfer');
-                header('Content-Disposition: attachment; filename=' . $this->xliff_files[0]['filename']);
-                header('Content-Type: text/xml; charset=' . get_option('blog_charset'), true);
-                echo $this->xliff_files[0]['file_content'];
-                exit;
-            }
+			header('Content-Description: File Transfer');
+			header('Content-Disposition: attachment; filename=' . $this->xliff_file[0]['filename']);
+			header('Content-Type: text/xml; charset=' . get_option('blog_charset'), true);
+			echo $this->xliff_file[0]['file_content'];
+			exit;
         } else {
             $to = $email;
             $subject = Options::get_options()->rrze_xliff_export_email_subject;
@@ -146,26 +134,21 @@ class Export
                 $body = __('XLIFF export', 'rrze-xliff');
             }
             // Platzhalter ersetzen. Wenn es um einen Bulk-Export geht, Platzhalter rauslöschen.
-            if (isset($zip)) {
+            if ($this->xliff_file[0]['post_id'] === null) {
                 $subject = str_replace('%%POST_ID%%', '', $subject);
                 $subject = str_replace('%%POST_TITLE%%', '', $subject);
             } else {
-                $subject = str_replace('%%POST_ID%%', $this->xliff_files[0]['post_id'], $subject);
-                $subject = str_replace('%%POST_TITLE%%', get_the_title($this->xliff_files[0]['post_id']), $subject);
+                $subject = str_replace('%%POST_ID%%', $this->xliff_file[0]['post_id'], $subject);
+                $subject = str_replace('%%POST_TITLE%%', get_the_title($this->xliff_file[0]['post_id']), $subject);
             }
 
             $headers = ['Content-Type: text/html; charset=UTF-8'];
             
-            if (!isset($zip)) {
-                add_action('phpmailer_init', function(&$phpmailer) {
-                    $phpmailer->AddStringAttachment($this->xliff_files[0]['file_content'], $this->xliff_files[0]['filename']);
-                });
+			add_action('phpmailer_init', function(&$phpmailer) {
+				$phpmailer->AddStringAttachment($this->xliff_file[0]['file_content'], $this->xliff_file[0]['filename']);
+			});
 
-                $mail_sent = wp_mail($to, $subject, $body, $headers);
-            } else {
-                $mail_sent = wp_mail($to, $subject, $body, $headers, [$zip_filename]);
-                unlink($zip_filename);
-            }
+			$mail_sent = wp_mail($to, $subject, $body, $headers);
             
             if ($mail_sent === true) {
                 Notices::add_notice(__('The export was sent successfully.', 'rrze-xliff'), 'success');
@@ -177,21 +160,133 @@ class Export
 
     /**
      * XLIFF-Markup genieren und dem Array hinzufügen.
+	 * 
+	 * @param int|array Single or multiple post ids.
      * 
      * @return string|\WP_Error Error bei Fehler, andernfalls Dateistring.
      */
     protected function get_xliff_file($post_id)
-    {
-        $export_post = get_post($post_id, OBJECT);
-        if ($export_post === null) {
-            return new \WP_Error('no_post', __('The submitted ID for export does not match a post', 'rrze-xliff'));
-        }
-        
+    {        
         $source_language_code = \get_bloginfo('language');
         if ($source_language_code == '') {
             return new \WP_Error('no_source_lang_code', __('No source language code set.', 'rrze-xliff'));
         }
-        $source_language_code = substr($source_language_code, 0, 2);
+		$source_language_code = substr($source_language_code, 0, 2);
+		
+		$file_blocks = '';
+		if (is_array($post_id)) {
+			foreach ($post_id as $id) {
+				$file_block = $this->get_xliff_file_block($id);
+				if (is_wp_error($file_block)) {
+					continue;
+				}
+
+				$file_blocks .= $file_block;
+			}
+		} else {
+			$file_block = $this->get_xliff_file_block($post_id);
+			if (is_wp_error($file_block)) {
+				return $file_block;
+			}
+
+			$file_blocks .= $file_block;
+		}
+        
+        $file = sprintf(
+            '<xliff xmlns="urn:oasis:names:tc:xliff:document:2.0" version="2.0" srcLang="%1$s">
+%2$s
+</xliff>',
+            $source_language_code,
+            $file_blocks
+        );
+
+        if (is_multisite()) {
+            global $current_blog;
+            $domain = $current_blog->domain;
+            $path = $current_blog->path;
+            $blog_id = $current_blog->blog_id;
+        } else {
+            $site_url = \get_home_url();
+            $parsed_url = parse_url($site_url);
+            $domain = $parsed_url['host'];
+            $path = isset($parsed_url['path']) ? $parsed_url['path'] : '/';
+            $blog_id = 1;
+        }
+        
+        $filename = sanitize_file_name(sprintf(
+            '%s%s-%s-%s.xml',
+            $domain,
+            $path !== '/' ? "-$path" : '',
+            $blog_id,
+            date('Ymd')
+        ));
+
+        array_push($this->xliff_file, [
+            'filename' => $filename,
+            'file_content' => $file,
+            'post_id' => null,
+        ]);
+        
+        return $file;
+    }
+
+    /**
+     * Get meta data from image object and store it in elements array.
+     */
+    protected function get_img_data($elements, $img_obj, $img_id_string)
+    {
+        $alt_text = get_post_meta($img_obj->ID, '_wp_attachment_image_alt', true);
+        if ($alt_text !== '') {
+            $elements[] = (object) [
+                'field_type' => $img_id_string . '_alt_text',
+                'field_data' => $alt_text,
+                'field_data_translated' => $alt_text, 
+            ];
+        }
+
+        $caption = $img_obj->post_excerpt;
+        if ($caption !== '') {
+            $elements[] = (object) [
+                'field_type' => $img_id_string . '_caption',
+                'field_data' => $caption,
+                'field_data_translated' => $caption, 
+            ];
+        }
+
+        $title = $img_obj->post_title;
+        if ($title !== '') {
+            $elements[] = (object) [
+                'field_type' => $img_id_string . '_title',
+                'field_data' => $title,
+                'field_data_translated' => $title, 
+            ];
+        }
+
+        $description = $img_obj->post_content;
+        if ($description !== '') {
+            $elements[] = (object) [
+                'field_type' => $img_id_string . '_description',
+                'field_data' => $description,
+                'field_data_translated' => $description, 
+            ];
+        }
+
+        return $elements;
+	}
+	
+	/**
+	 * Returns <file> block for the specified post.
+	 * 
+	 * @param int $post_id ID of the post.
+	 * 
+	 * @return string The XLIFF file block markup.
+	 */
+	protected function get_xliff_file_block($post_id)
+	{
+		$export_post = get_post($post_id, OBJECT);
+        if ($export_post === null) {
+            return new \WP_Error('no_post', __('The submitted ID for export does not match a post', 'rrze-xliff'));
+        }
 
         // XLIFF-Markup erstellen.
         $elements = [
@@ -234,7 +329,47 @@ class Export
                 'field_data' => $meta_value,
                 'field_data_translated' => $meta_value,            
             ];
-        }
+		}
+
+		$elements_with_translation = [];
+		
+		// Terme/Taxonomien behandeln.
+		$taxonomies = get_object_taxonomies($export_post);
+		if (is_array($taxonomies) && !empty($taxonomies)) {
+			foreach ($taxonomies as $taxonomy) {
+				$terms = wp_get_post_terms($post_id, $taxonomy);
+
+				if (!is_array($terms) || empty($terms)) {
+					continue;
+				}
+
+				foreach ($terms as $term) {
+					$translations = \Inpsyde\MultilingualPress\translationIds($term->term_id, 'term');
+					if (!is_array($translations) || empty($translations)) {
+						// Keine Übersetzung vorhanden, also Wert in XML schreiben.
+						$elements[] = (object) [
+							'field_type' => "_term_{$term->taxonomy}_translation_term_id_$term->term_id",
+							'field_data' => $term->name,
+							'field_data_translated' => $term->name,            
+						];
+						continue;
+					}
+
+					// Verknüpfte Übersetzung vorhanden.
+					foreach ($translations as $site_id => $term_id) {
+						// Prüfen, ob $site_id die aktuelle Site ist.
+						if ($site_id === get_current_blog_id()) {
+							continue;
+						}
+
+						$elements_with_translation[] = [
+							'attr_name' => "data-taxonomy-$taxonomy-term_id-$term_id",
+							'attr_value' => $term_id
+						];
+					}
+				}
+			}
+		}
 
         // Handling des Beitragsbilds.
         $post_thumbnail = get_the_post_thumbnail($post_id);
@@ -286,114 +421,45 @@ class Export
             }
         }
 
-        $translation = (object) [
-            'original' => sanitize_file_name(sprintf('%1$s-%2$s', $export_post->post_title, $export_post->ID)),
-            'source_language_code' => $source_language_code,
-            'elements' => $elements
-        ];
-
         $translation_units = '';
 
-        foreach ($translation->elements as $element) {
+        foreach ($elements as $element) {
             $field_data = $element->field_data;
-            $field_data_translated = $element->field_data_translated;
             if ($field_data != '') {
                 $translation_units .= sprintf(
                     '        <unit id="%1$s">
             <segment>
-                <source>%2$s</source>
-                <target>%3$s</target>
+                <target>%2$s</target>
             </segment>
         </unit>',
                     $element->field_type,
-                    $field_data,
-                    $field_data_translated
+                    $field_data
                 );
             }
-        }
+		}
+		
+		// Die bereits übersetzten Dinge abfrühstücken.
+		$translated_attrs = '';
+		if (!empty($elements_with_translation)) {
+			foreach ($elements_with_translation as $element_with_translation) {
+				$translated_attrs .= sprintf(
+					' %s="%s" ',
+					$element_with_translation['attr_name'],
+					$element_with_translation['attr_value'],
+				);
+			}
+		}
         
         $file = sprintf(
-            '<xliff xmlns="urn:oasis:names:tc:xliff:document:2.0" version="2.0" srcLang="%1$s">
-    <file id="f1">
-%2$s
-    </file>
-</xliff>',
-            $source_language_code,
+            '<file id="%d" data-post-type="%s" %s>
+%s
+</file>',
+			$post_id,
+			$export_post->post_type,
+			$translated_attrs,
             $translation_units
-        );
-
-        if (is_multisite()) {
-            global $current_blog;
-            $domain = $current_blog->domain;
-            $path = $current_blog->path;
-            $blog_id = $current_blog->blog_id;
-        } else {
-            $site_url = \get_home_url();
-            $parsed_url = parse_url($site_url);
-            $domain = $parsed_url['host'];
-            $path = isset($parsed_url['path']) ? $parsed_url['path'] : '/';
-            $blog_id = 1;
-        }
-        
-        $filename = sanitize_file_name(sprintf(
-            '%s%s-%s-%s-%s.xml',
-            $domain,
-            $path !== '/' ? "-$path" : '',
-            $blog_id,
-            $post_id,
-            date('Ymd')
-        ));
-
-        array_push($this->xliff_files, [
-            'filename' => $filename,
-            'file_content' => $file,
-            'post_id' => $post_id,
-        ]);
-        
-        return $file;
-    }
-
-    /**
-     * Get meta data from image object and store it in elements array.
-     */
-    protected function get_img_data($elements, $img_obj, $img_id_string)
-    {
-        $alt_text = get_post_meta($img_obj->ID, '_wp_attachment_image_alt', true);
-        if ($alt_text !== '') {
-            $elements[] = (object) [
-                'field_type' => $img_id_string . '_alt_text',
-                'field_data' => $alt_text,
-                'field_data_translated' => $alt_text, 
-            ];
-        }
-
-        $caption = $img_obj->post_excerpt;
-        if ($caption !== '') {
-            $elements[] = (object) [
-                'field_type' => $img_id_string . '_caption',
-                'field_data' => $caption,
-                'field_data_translated' => $caption, 
-            ];
-        }
-
-        $title = $img_obj->post_title;
-        if ($title !== '') {
-            $elements[] = (object) [
-                'field_type' => $img_id_string . '_title',
-                'field_data' => $title,
-                'field_data_translated' => $title, 
-            ];
-        }
-
-        $description = $img_obj->post_content;
-        if ($description !== '') {
-            $elements[] = (object) [
-                'field_type' => $img_id_string . '_description',
-                'field_data' => $description,
-                'field_data_translated' => $description, 
-            ];
-        }
-
-        return $elements;
-    }
+		);
+		
+		return $file;
+	}
 }
