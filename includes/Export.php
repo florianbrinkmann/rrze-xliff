@@ -176,6 +176,11 @@ class Export
 		$file_blocks = '';
 		if (is_array($post_id)) {
 			foreach ($post_id as $id) {
+				// Check if that is a post to exclude from mass exports.
+				$exclude_from_mass_export = get_post_meta($id, 'rrze_xliff_exclude_from_mass_export', true);
+				if ($exclude_from_mass_export === '1') {
+					continue;
+				}
 				$file_block = $this->get_xliff_file_block($id);
 				if (is_wp_error($file_block)) {
 					continue;
