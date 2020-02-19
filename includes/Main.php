@@ -50,6 +50,26 @@ class Main
                 add_action('admin_enqueue_scripts', [$this, 'enqueue_bulk_export_script']);
             }
 		});
+
+		/**
+		 * Add hint about excluded pages in the nested pages list view.
+		 */
+		add_filter('the_title', function($title, $post_id, $view = '') {
+			if ($view !== 'nestedpages_title') {
+				return $title;
+			}
+
+			$excluded_from_mass_export = get_post_meta($post_id, 'rrze_xliff_exclude_from_mass_export', true);
+			if ($excluded_from_mass_export !== '1') {
+				return $title;
+			}
+
+			return sprintf(
+				'%s <strong>(%s)</strong>',
+				$title,
+				__('Excluded from mass export', 'rrze-xliff')
+			);
+		}, 10, 3);
 	}
 	
 	/**
