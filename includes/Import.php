@@ -3,9 +3,7 @@
 namespace RRZE\XLIFF;
 
 class Import
-{
-    protected $xliff_files = [];
-    
+{   
     protected $helpers;
 
     /**
