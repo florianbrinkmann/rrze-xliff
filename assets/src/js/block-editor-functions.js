@@ -6,7 +6,7 @@ const {
     TextareaControl,
     Modal,
     Disabled,
-    Notice
+    CheckboxControl,
 } = wp.components;
 const {withState} = wp.compose;
 const {Fragment} = wp.element;
@@ -180,13 +180,32 @@ registerPlugin( 'rrze-xliff', {
                     )}
                 </Fragment>
             )
-        } );
-        return (
+		} );
+
+		let meta = wp.data.select('core/editor').getEditedPostAttribute('meta');
+
+		const ExcludeFromMassExportControl = withState({
+			isExcluded: meta.rrze_xliff_exclude_from_mass_export,
+		})(({isExcluded, setState}) => {
+			return ( <CheckboxControl
+				label={rrzeXliffJavaScriptData.exclude_from_export_label}
+				checked={isExcluded}
+				onChange={() => {
+					setState({isExcluded: ! isExcluded});
+					wp.data.dispatch('core/editor').editPost({meta: { ...meta, ['rrze_xliff_exclude_from_mass_export']: ! isExcluded}});
+				}}
+			/> )
+		});
+
+		return (
             <PluginPostStatusInfo
                 className="rrze-xliff-export-and-import"
             >
                 <div>
                 {rrzeXliffJavaScriptData.xliff} <ExportModal/> <ImportModal/>
+					<p>
+						<ExcludeFromMassExportControl/>
+					</p>
                 </div>
             </PluginPostStatusInfo>
         )

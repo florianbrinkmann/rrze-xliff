@@ -19,7 +19,9 @@ class Main
         $this->helpers = new Helpers();
         new Notices();
 
-        add_action('enqueue_block_editor_assets', [$this, 'enqueue_block_editor_script']);
+		add_action('enqueue_block_editor_assets', [$this, 'enqueue_block_editor_script']);
+		
+		add_action('init', [$this, 'register_post_meta']);
         
         add_action('current_screen', function ($screen) {
 			if ($screen->base === 'toplevel_page_nestedpages') {
@@ -48,7 +50,25 @@ class Main
                 add_action('admin_enqueue_scripts', [$this, 'enqueue_bulk_export_script']);
             }
 		});
-    }
+	}
+	
+	/**
+	 * Register post meta.
+	 */
+	public function register_post_meta() {
+		$post_types = Options::get_options()->rrze_xliff_export_import_post_types;
+		if (! is_array($post_types) || empty($post_types)) {
+			return;
+		}
+
+		foreach ($post_types as $post_type) {
+			register_post_meta($post_type, 'rrze_xliff_exclude_from_mass_export', [
+				'show_in_rest' => true,
+				'type' => 'boolean',
+				'single' => true,
+			]);
+		}
+	}
 
     /**
      * Enqueue des Block-Editor-Skripts.
@@ -71,7 +91,8 @@ class Main
             'send_email' => __('Send XLIFF file', 'rrze-xliff'),
             'import' => __('Import', 'rrze-xliff'),
             'xliff' => __('XLIFF:', 'rrze-xliff'),
-            'export' => __('Export', 'rrze-xliff'),
+			'export' => __('Export', 'rrze-xliff'),
+			'exclude_from_export_label' => __('Exclude from mass export', 'rrze-xliff'),
         ]);
         wp_enqueue_script('rrze-xliff-block-editor-script');
     }
