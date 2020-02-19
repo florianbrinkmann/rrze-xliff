@@ -55,6 +55,11 @@ class Main
      */
     public function enqueue_block_editor_script()
     {
+		$post_type = get_post_type();
+		$post_types = Options::get_options()->rrze_xliff_export_import_post_types;
+		if (! in_array($post_type, $post_types)) {
+			return;
+		}
         wp_register_script('rrze-xliff-block-editor-script', plugins_url('assets/dist/js/block-editor-functions.js', plugin_basename(RRZE_PLUGIN_FILE)), ['wp-plugins', 'wp-element', 'wp-edit-post', 'wp-block-serialization-default-parser', 'wp-i18n']);
         wp_localize_script('rrze-xliff-block-editor-script', 'rrzeXliffJavaScriptData', [
             'email_address' => Options::get_options()->rrze_xliff_export_email_address,
