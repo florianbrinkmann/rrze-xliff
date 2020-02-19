@@ -79,6 +79,7 @@
 			}
 		}
 	}
+	
 	/**
 	 * Check all children of a given row.
 	 * 
