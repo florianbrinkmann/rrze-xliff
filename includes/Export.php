@@ -182,7 +182,7 @@ class Export
 					continue;
 				}
 				$file_block = $this->get_xliff_file_block($id);
-				if (is_wp_error($file_block)) {
+				if (is_wp_error($file_block) || false === $file_block) {
 					continue;
 				}
 
@@ -190,7 +190,7 @@ class Export
 			}
 		} else {
 			$file_block = $this->get_xliff_file_block($post_id);
-			if (is_wp_error($file_block)) {
+			if (is_wp_error($file_block) || false === $file_block) {
 				return $file_block;
 			}
 
@@ -310,6 +310,45 @@ class Export
                 'field_data_translated' => $export_post->post_excerpt,
             ]
         ];
+
+		// Die ID der Ziel-Site holen.
+		$target_site_id = 0;
+		$languages = \Inpsyde\MultilingualPress\assignedLanguages();
+		foreach ($languages as $site_id => $language) {
+			if ($site_id === get_current_blog_id()) {
+				continue;
+			}
+			$target_site_id = $site_id;
+			break;
+		}
+
+		// Prüfen, ob der Post/Page eine Übersetzung hat.
+		$translations = \Inpsyde\MultilingualPress\translationIds($post_id, 'post');
+		if (is_array($translations) && !empty($translations)) {
+			// Verknüpfte Übersetzung vorhanden.
+			foreach ($translations as $site_id => $translated_post_id) {
+				// Prüfen, ob $site_id die aktuelle Site ist.
+				if ($site_id === get_current_blog_id()) {
+					continue;
+				}
+
+				$elements_with_translation[] = [
+					'attr_name' => "data-translated-post",
+					'attr_value' => $translated_post_id
+				];
+
+				// Prüfen, ob der Update-Zeitpunkt des übersetzten Beitrags neuer ist als der, der exportiert werden soll.
+				$source_post_timestamp = get_post_timestamp($post_id, 'modified');
+
+				switch_to_blog($target_site_id);
+				$target_post_timestamp = get_post_timestamp($translated_post_id, 'modified');
+				restore_current_blog();
+				
+				if ($target_post_timestamp > $source_post_timestamp) {
+					return false;
+				}
+			}
+		}
 
         $post_meta = get_post_meta($post_id);
         foreach ($post_meta as $meta_key => $meta_value) {
@@ -442,23 +481,6 @@ class Export
                 );
             }
 		}
-
-		// Prüfen, ob der Post/Page eine Übersetzung hat.
-		$translations = \Inpsyde\MultilingualPress\translationIds($post_id, 'post');
-		if (is_array($translations) && !empty($translations)) {
-			// Verknüpfte Übersetzung vorhanden.
-			foreach ($translations as $site_id => $translated_post_id) {
-				// Prüfen, ob $site_id die aktuelle Site ist.
-				if ($site_id === get_current_blog_id()) {
-					continue;
-				}
-
-				$elements_with_translation[] = [
-					'attr_name' => "data-translated-post",
-					'attr_value' => $translated_post_id
-				];
-			}
-		}
 		
 		// Prüfen, ob das Element ein Elternelement hat.
 		$parent_id = wp_get_post_parent_id($post_id);
@@ -493,16 +515,6 @@ class Export
 			}
 		}
 
-		// Die ID der Ziel-Site holen.
-		$target_site_id = 0;
-		$languages = \Inpsyde\MultilingualPress\assignedLanguages();
-		foreach ($languages as $site_id => $language) {
-			if ($site_id === get_current_blog_id()) {
-				continue;
-			}
-			$target_site_id = $site_id;
-			break;
-		}        
         $file = sprintf(
             '<file id="%d" data-post-type="%s" data-site-id="%d" data-target-site-id="%d" data-post-status="%s" %s %s>
 %s
