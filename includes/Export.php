@@ -219,11 +219,10 @@ class Export
         }
         
         $filename = sanitize_file_name(sprintf(
-            '%s%s-%s-%s.xml',
-            $domain,
-            $path !== '/' ? "-$path" : '',
-            $blog_id,
-            date('Ymd')
+			'%s_%s_%s.xml',
+			isset( $_POST['rrze-export-preset-name'] ) && $_POST['rrze-export-preset-name'] !== '' ? sanitize_title( $_POST['rrze-export-preset-name'] ) : $domain,
+			date('dmY'),
+			date('Hi')
         ));
 
         array_push($this->xliff_file, [
@@ -314,7 +313,8 @@ class Export
 
         $post_meta = get_post_meta($post_id);
         foreach ($post_meta as $meta_key => $meta_value) {
-            if (strpos($meta_key, '_') === 0) {
+			// Metawerte mit Unterstrich überspringen. Werte von The SEO Framework aber integrieren.
+            if (strpos($meta_key, '_') === 0 && strpos($meta_key, '_genesis_') !== 0) {
                 continue;
             }
             
@@ -388,7 +388,7 @@ class Export
 
         $attached_images = get_attached_media('image', $post_id);
 
-        if (! empty($attached_images)) {
+        if (!empty($attached_images)) {
             foreach ($attached_images as $attached_image) {
                 // Prüfen, ob das Bild bereits vorgekommen ist.
                 if (in_array($attached_image->ID, $post_images_ids)) {
@@ -403,7 +403,7 @@ class Export
 
         $galleries = get_post_galleries($post_id, false);
 
-        if (! empty($galleries)) {
+        if (!empty($galleries)) {
             foreach ($galleries as $gallery) {
                 $ids = explode(',', $gallery['ids']);
                 if (is_array($ids) && ! empty($ids)) {
@@ -442,7 +442,45 @@ class Export
                 );
             }
 		}
+
+		// Prüfen, ob der Post/Page eine Übersetzung hat.
+		$translations = \Inpsyde\MultilingualPress\translationIds($post_id, 'post');
+		if (is_array($translations) && !empty($translations)) {
+			// Verknüpfte Übersetzung vorhanden.
+			foreach ($translations as $site_id => $translated_post_id) {
+				// Prüfen, ob $site_id die aktuelle Site ist.
+				if ($site_id === get_current_blog_id()) {
+					continue;
+				}
+
+				$elements_with_translation[] = [
+					'attr_name' => "data-translated-post",
+					'attr_value' => $translated_post_id
+				];
+			}
+		}
 		
+		// Prüfen, ob das Element ein Elternelement hat.
+		$parent_id = wp_get_post_parent_id($post_id);
+		if ($parent_id) {
+			// Prüfen, ob der Elternbeitrag eine Übersetzung hat.
+			$translations = \Inpsyde\MultilingualPress\translationIds($parent_id, 'post');
+			if (is_array($translations) && !empty($translations)) {
+				// Verknüpfte Übersetzung vorhanden.
+				foreach ($translations as $site_id => $translated_parent_post_id) {
+					// Prüfen, ob $site_id die aktuelle Site ist.
+					if ($site_id === get_current_blog_id()) {
+						continue;
+					}
+
+					$elements_with_translation[] = [
+						'attr_name' => "data-translated-parent-post",
+						'attr_value' => $translated_parent_post_id
+					];
+				}
+			}
+		}
+
 		// Die bereits übersetzten Dinge abfrühstücken.
 		$translated_attrs = '';
 		if (!empty($elements_with_translation)) {
@@ -454,14 +492,31 @@ class Export
 				);
 			}
 		}
-        
+
+		// Die ID der Ziel-Site holen.
+		$target_site_id = 0;
+		$languages = \Inpsyde\MultilingualPress\assignedLanguages();
+		foreach ($languages as $site_id => $language) {
+			if ($site_id === get_current_blog_id()) {
+				continue;
+			}
+			$target_site_id = $site_id;
+			break;
+		}        
         $file = sprintf(
-            '<file id="%d" data-post-type="%s" %s>
+            '<file id="%d" data-post-type="%s" data-site-id="%d" data-target-site-id="%d" data-post-status="%s" %s %s>
 %s
 </file>',
 			$post_id,
 			$export_post->post_type,
+			get_current_blog_id(),
+			$target_site_id,
+			$export_post->post_status,
 			$translated_attrs,
+			$parent_id ? sprintf(
+				' data-parent-post="%d" ',
+				$parent_id
+			) : '',
             $translation_units
 		);
 		

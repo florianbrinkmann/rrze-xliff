@@ -181,6 +181,19 @@ class Main
 			'dropdown_menu_label' => __('Bulk XLIFF export', 'rrze-xliff'),
 			'select_tree_button_label' => __('Select page tree', 'rrze-xliff'),
 			'preset_select_markup' => $saved_presets_markup,
+			'preset_name_hidden_field' => '<input type="hidden" id="rrze-export-preset-name" name="rrze-export-preset-name" type="text">',
+			'import_form' => sprintf(
+				'<form id="rrze-bulk-import-form" method="post" enctype="multipart/form-data">
+				%s
+					<label for="rrze-bulk-import-file">%s</label>
+					<input type="file" name="rrze-bulk-import-file" id="rrze-bulk-import-file" accept=".xml,.xliff" required="required">
+					<input type="submit" value="%s">
+				</form>',
+				wp_nonce_field('rrze_bulk_import_form', 'rrze_bulk_import_form_nonce', true, false),
+				__('Select file to import', 'rrze-xliff'),
+				__('Import', 'rrze-xliff')
+
+			)
         ]);
 		wp_enqueue_script('rrze-xliff-nestedpages-bulk-export');
     }

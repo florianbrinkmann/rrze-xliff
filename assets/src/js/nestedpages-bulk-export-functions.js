@@ -3,20 +3,40 @@
  * Funktionen für den Massenexport.
  */
 (function(){
+	// Import-Button einfügen.
+	const nestedPagesTools = document.querySelector('.nestedpages-tools');
+	if (nestedPagesTools) {
+		nestedPagesTools.innerHTML = rrzeXliffJavaScriptData.import_form + nestedPagesTools.innerHTML;
+	}
 	// Preset-Select-Element zu dem Listen-Header hinzufügen.
 	const listHeader = document.querySelector('.nestedpages-list-header');
 	if (listHeader && rrzeXliffJavaScriptData.preset_select_markup !== '') {
 		listHeader.innerHTML += rrzeXliffJavaScriptData.preset_select_markup;
 		const presetsSelect = listHeader.querySelector('#export-presets');
 		if (presetsSelect) {
+			const npBulkForm = document.querySelector( 'form.np-bulk-form' );
+			if ( npBulkForm ) {
+				npBulkForm.innerHTML += rrzeXliffJavaScriptData.preset_name_hidden_field;
+			}
+			const hiddenPresetNameField = document.getElementById( 'rrze-export-preset-name' );
 			presetsSelect.addEventListener('change', function(e) {
 				const selected = e.target.selectedOptions[0];
 				if (!selected) {
 					return;
 				}
 
+				if (hiddenPresetNameField) {
+					hiddenPresetNameField.value = selected.label;
+				}
+
 				if (selected.value === '') {
 					return;
+				}
+
+				// Uncheck all boxes that are checked.
+				const bulkCheckboxes = document.querySelectorAll('.np-bulk-checkbox [type="checkbox"]:checked');
+				for (let bulkCheckbox of bulkCheckboxes) {
+					bulkCheckbox.checked = false;
 				}
 
 				// Search Nested Pages list item.
