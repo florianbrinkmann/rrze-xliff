@@ -292,25 +292,6 @@ class Export
             return new \WP_Error('no_post', __('The submitted ID for export does not match a post', 'rrze-xliff'));
         }
 
-        // XLIFF-Markup erstellen.
-        $elements = [
-            (object) [
-                'field_type' => 'title',
-                'field_data' => $export_post->post_title,
-                'field_data_translated' => $export_post->post_title,
-            ],
-            (object) [
-                'field_type' => 'body',
-                'field_data' => $export_post->post_content,
-                'field_data_translated' => $export_post->post_content,
-            ],
-            (object) [
-                'field_type' => 'excerpt',
-                'field_data' => $export_post->post_excerpt,
-                'field_data_translated' => $export_post->post_excerpt,
-            ]
-        ];
-
 		// Die ID der Ziel-Site holen.
 		$target_site_id = 0;
 		$languages = \Inpsyde\MultilingualPress\assignedLanguages();
@@ -321,6 +302,8 @@ class Export
 			$target_site_id = $site_id;
 			break;
 		}
+		
+		$elements_with_translation = [];
 
 		// Prüfen, ob der Post/Page eine Übersetzung hat.
 		$translations = \Inpsyde\MultilingualPress\translationIds($post_id, 'post');
@@ -350,6 +333,66 @@ class Export
 			}
 		}
 
+		$site_url = get_site_url();
+		$pattern = sprintf('|href="(%s[^"]*)"|', $site_url);
+
+		// Alle internen Links aus dem Beitragsinhalt suchen und auf Übersetzungen prüfen.
+		$internal_links = preg_match_all($pattern, $export_post->post_content, $matches);
+
+		if ($matches) {
+			$search_array = [];
+			$replace_array = [];
+
+			// Die gefundenen URLs durchlaufen.
+			foreach ($matches[1] as $key => $url) {
+				$tmp = url_to_postid($url);
+
+				// Kein Beitrag zuzuordnen, nächste URL.
+				if (0 === $tmp) {
+					continue;
+				}
+
+				$url_query = parse_url($url, PHP_URL_QUERY);
+				$url_fragment = parse_url($url, PHP_URL_FRAGMENT);
+				array_push($search_array, $matches[0][$key]);
+				array_push($replace_array, sprintf(
+					'href="{{hohenheim_url_post_id:%d}}%s%s"',
+					$tmp,
+					$url_query !== null ? sprintf(
+						'{{hohenheim_url_query:%s}}',
+						$url_query
+					) : '',
+					$url_fragment !== null ? sprintf(
+						'{{hohenheim_url_hash:%s}}',
+						$url_fragment
+					) : ''
+				));
+			}
+
+			if (!empty($search_array) && !empty($replace_array) && count($search_array) === count($replace_array)) {
+				$export_post->post_content = str_replace($search_array, $replace_array, $export_post->post_content);
+			}
+		}
+
+        // XLIFF-Markup erstellen.
+        $elements = [
+            (object) [
+                'field_type' => 'title',
+                'field_data' => $export_post->post_title,
+                'field_data_translated' => $export_post->post_title,
+            ],
+            (object) [
+                'field_type' => 'body',
+                'field_data' => $export_post->post_content,
+                'field_data_translated' => $export_post->post_content,
+            ],
+            (object) [
+                'field_type' => 'excerpt',
+                'field_data' => $export_post->post_excerpt,
+                'field_data_translated' => $export_post->post_excerpt,
+            ]
+        ];
+
         $post_meta = get_post_meta($post_id);
         foreach ($post_meta as $meta_key => $meta_value) {
 			// Metawerte mit Unterstrich überspringen. Werte von The SEO Framework aber integrieren.
@@ -374,8 +417,6 @@ class Export
                 'field_data_translated' => $meta_value,            
             ];
 		}
-
-		$elements_with_translation = [];
 		
 		// Terme/Taxonomien behandeln.
 		$taxonomies = get_object_taxonomies($export_post);

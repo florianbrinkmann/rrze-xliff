@@ -18,7 +18,7 @@ class Notices
      * Eine Notice hinzufügen.
      * 
      * @param string $notice Text der Nachricht.
-     * @param string $type Optional. Art der Nachticht. WordPress hat Styles für: info|success|warning|error
+     * @param string $type Optional. Art der Nachricht. WordPress hat Styles für: info|success|warning|error
      */
     public static function add_notice($notice, $type = 'info') {
         $type = esc_attr($type);
