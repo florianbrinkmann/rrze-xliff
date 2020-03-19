@@ -13,6 +13,8 @@ class Import
 	 */
 	protected $errors = [];
 
+	protected $info = [];
+
 	/**
 	 * Array von Post-IDs, in denen es noch Platzhalter gibt.
 	 */
@@ -69,6 +71,12 @@ class Import
 					}
 				} else {
 					Notices::add_notice(__('Import successful', 'rrze-xliff'), 'success');
+
+					if (!empty((array) $this->info)) {
+						foreach($this->info as $info) {
+							Notices::add_notice($info);
+						}
+					}
 				}
 			}
 		});
@@ -324,19 +332,17 @@ class Import
 					$post_with_wrong_links_left = get_post($replacement_post_id);
 					
 					// Prüfen, ob es ein Problem beim Holen des Beitrags gab.
-					if (!$translated_post) {
+					if (!$post_with_wrong_links_left) {
 						array_push($this->errors, new \WP_Error('error_getting_translated_post', sprintf(__('The post with the ID %d should contain one or more links to content on the source site, but the post does not exist.', 'rrze-xliff'), (int) $replacement_post_id)));
 						continue;
 					}
 
-					Notices::add_notice(
-						sprintf( /* translators: 1=linked title of content */
-							__('The post „%s“ contains on or more links that point to content on the source site.', 'rrze-xliff'),
-							sprintf(
-								'<a href="%s" target="_blank">%s</a>',
-								get_the_permalink($post_with_wrong_links_left),
-								$post_with_wrong_links_left->post_title
-							)
+					$this->info[] = sprintf( /* translators: 1=linked title of content */
+						__('The post „%s“ contains one or more links that point to content on the source site.', 'rrze-xliff'),
+						sprintf(
+							'<a href="%s" target="_blank">%s</a>',
+							get_the_permalink($post_with_wrong_links_left),
+							$post_with_wrong_links_left->post_title
 						)
 					);
 				}
